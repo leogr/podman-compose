@@ -628,9 +628,24 @@ def up(project_name, dirname, pods, containers, no_cleanup, dry_run, podman_path
 
     for cnt in containers:
         # TODO: -e , --add-host, -v, --read-only
+
         args = container_to_args(cnt, dirname, podman_path, shared_vols)
+        print("Image: " + args[-1])
+        run_verify(podman_path, args[-1])
         run_podman(dry_run, podman_path, args)
 
+
+def run_verify(podman_path, image):
+    print("pre-pulling image:" + image)
+    run_podman(0, podman_path, ["pull", "image"])
+
+    print("vcn verify podman://" + image)
+    args = "podman://" + image
+    cmd = ["vcn", "verify", args]
+    p = subprocess.Popen(cmd)
+    print(p.wait())
+
+    return p
 
 def run_compose(
         cmd, cmd_args, filename, project_name,
