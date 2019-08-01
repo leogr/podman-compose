@@ -605,7 +605,7 @@ def build(project_name, dirname, pods, containers, dry_run, podman_path, podman_
         build_args.append(ctx)
         run_podman(dry_run, podman_path, build_args, sleep=0)
 
-def up(project_name, dirname, pods, containers, no_cleanup, dry_run, podman_path, shared_vols):
+def up(project_name, dirname, pods, containers, no_cleanup, dry_run, podman_path, shared_vols, content_trust):
     os.chdir(dirname)
 
     # NOTE: podman does not cache, so don't always build
@@ -631,25 +631,26 @@ def up(project_name, dirname, pods, containers, no_cleanup, dry_run, podman_path
 
         args = container_to_args(cnt, dirname, podman_path, shared_vols)
         print("Image: " + args[-1])
-        run_verify(podman_path, args[-1])
+        exitCode = run_verify(podman_path, args[-1])
+        if content_trust and exitCode != 0:
+            quit(exitCode)
         run_podman(dry_run, podman_path, args)
 
 
 def run_verify(podman_path, image):
     print("pre-pulling image:" + image)
-    run_podman(0, podman_path, ["pull", "image"])
+    run_podman(0, podman_path, ["pull", image])
 
     print("vcn verify podman://" + image)
     args = "podman://" + image
     cmd = ["vcn", "verify", args]
     p = subprocess.Popen(cmd)
-    print(p.wait())
-
-    return p
+ 
+    return p.wait()
 
 def run_compose(
         cmd, cmd_args, filename, project_name,
-        no_ansi, no_cleanup, dry_run,
+        no_ansi, no_cleanup, dry_run, content_trust,
         transform_policy, podman_path, host_env=None,
     ):
     if not os.path.exists(filename):
@@ -768,7 +769,7 @@ def run_compose(
         build(project_name, dirname, pods, containers, dry_run, podman_path, podman_args)
     elif cmd == "up":
         up(project_name, dirname, pods, containers,
-           no_cleanup, dry_run, podman_path, shared_vols)
+           no_cleanup, dry_run, podman_path, shared_vols, content_trust)
     elif cmd == "down":
         down(project_name, dirname, pods, containers, dry_run, podman_path)
     else:
@@ -799,6 +800,8 @@ def main():
     parser.add_argument("-t", "--transform_policy",
                         help="how to translate docker compose to podman [1pod|hostnet|accurate]",
                         choices=['1pod', '1podfw', 'hostnet', 'cntnet', 'publishall', 'identity'], default='1podfw')
+    parser.add_argument("--enforce-content-trust",
+                        help="Enable content trust enforcement; stop the execution if a not verified image is encountered", action='store_true')
 
     args = parser.parse_args()
     run_compose(
@@ -809,6 +812,7 @@ def main():
         no_ansi=args.no_ansi,
         no_cleanup=args.no_cleanup,
         dry_run=args.dry_run,
+        content_trust=args.enforce_content_trust,
         transform_policy=args.transform_policy,
         podman_path=args.podman_path
     )
