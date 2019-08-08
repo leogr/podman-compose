@@ -633,6 +633,7 @@ def up(project_name, dirname, pods, containers, no_cleanup, dry_run, podman_path
         print("Image: " + args[-1])
         exitCode = run_verify(podman_path, args[-1])
         if content_trust and exitCode != 0:
+            print("CodeNotary Enforce Content Trust detected an unsigned container image and stopped the process.")
             quit(exitCode)
         run_podman(dry_run, podman_path, args)
 
